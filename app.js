@@ -1,9 +1,31 @@
 // ================================
-// DATA MANAGEMENT
+// 🔥 FIREBASE CONFIGURATION SECTION
+// ================================
+// Uncomment this section when Firebase is configured in index.html
+
+/*
+// Check if Firebase is available
+const useFirebase = typeof firebase !== 'undefined';
+
+if (useFirebase) {
+    console.log('✅ Firebase is connected'); 
+} else {
+    console.log('⚠️  Firebase not configured - using localStorage only');
+}
+*/
+
+const useFirebase = true; // Change to true when Firebase is configured
+
+// ================================
+// CONFIGURATION & CONSTANTS
 // ================================
 
 const ADMIN_PASSWORD = "#@Naman1199";
 const DEFAULT_BANNER = "https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=1600&h=600&fit=crop";
+
+// ================================
+// DATA INITIALIZATION
+// ================================
 
 // Initialize data from localStorage or use defaults
 let products = JSON.parse(localStorage.getItem('vishwakarma-products')) || getDefaultProducts();
@@ -76,21 +98,225 @@ function getDefaultProducts() {
             image: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=600",
             type: "inspiration",
             mostLiked: false
-        },
-        {
-            id: "7",
-            name: "LED Panel",
-            description: "Elegant LED Panel with mirror and drawers",
-            price: 29999,
-            category: "LED Panels",
-            image: "https://www.bing.com/images/search?view=detailV2&ccid=dUC1tBi%2f&id=D530FE84063066015DD322C3091AA1C05765482E&thid=OIP.dUC1tBi_qZ1XjeuMUoDawAHaHa&mediaurl=https%3a%2f%2fwww.99acres.com%2fmicrosite%2fwp-content%2fblogs.dir%2f6161%2ffiles%2f2023%2f07%2fBacklit-TV-Wall-LED-Panel.jpg&exph=512&expw=512&q=led+tv+panels&FORM=IRPRST&ck=62E161606DF429AA8C0B2708019C4A85&selectedIndex=2&itb=0",
-            type: "inspiration",
-            mostLiked: false
         }
     ];
 }
+async function migrateLocalProductsToFirestore() {
+  for (let product of products) {
+    const { id, ...productWithoutId } = product;
 
-// Save data to localStorage
+    await db.collection("products").add({
+      ...productWithoutId,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }
+
+  console.log("✅ Migration complete without local IDs");
+}
+``
+// ================================
+// 🔥 FIREBASE FUNCTIONS
+// ================================
+
+// ✅ SECTION 1: Load Products from Firestore
+function loadProductsFromFirestore() {
+    if (!useFirebase) {
+        console.log('Using localStorage for products');
+        return;
+    }
+    
+    //UNCOMMENT THIS WHEN FIREBASE IS READY:
+    
+    // Real-time listener for products
+    db.collection('products').onSnapshot((snapshot) => {
+        products = [];
+        snapshot.forEach((doc) => {
+            products.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        
+        // Update localStorage as backup
+        saveToLocalStorage();
+        
+        // Re-render UI
+        renderCategories();
+        renderProducts();
+        
+        console.log('✅ Products synced from Firestore:', products.length);
+    }, (error) => {
+        console.error('❌ Error loading products from Firestore:', error);
+        showToast('Failed to sync products', 'error');
+    });
+    
+
+}
+
+// ✅ SECTION 2: Add Product to Firestore
+async function addProductToFirestore(productData) {
+    if (!useFirebase) {
+        // Use localStorage only
+        const newProduct = {
+            ...productData,
+            id: Date.now().toString(),
+        };
+        products.push(newProduct);
+        saveToLocalStorage();
+        return newProduct;
+    }
+    
+    //UNCOMMENT THIS WHEN FIREBASE IS READY:
+    
+    try {
+        const docRef = await db.collection('products').add({
+            ...productData,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        console.log('✅ Product added to Firestore with ID:', docRef.id);
+        showToast('Product added successfully', 'success');
+        return { id: docRef.id, ...productData };
+        
+    } catch (error) {
+        console.error('❌ Error adding product to Firestore:', error);
+        showToast('Failed to add product', 'error');
+        throw error;
+    }
+    
+}
+
+// ✅ SECTION 3: Update Product in Firestore
+async function updateProductInFirestore(id, updates) {
+    if (!useFirebase) {
+        // Use localStorage only
+        const index = products.findIndex(p => p.id === id);
+        if (index !== -1) {
+            products[index] = { ...products[index], ...updates };
+            saveToLocalStorage();
+        }
+        return;
+    }
+    
+    // UNCOMMENT THIS WHEN FIREBASE IS READY:
+    
+    try {
+        await db.collection('products').doc(id).update({
+            ...updates,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        console.log('✅ Product updated in Firestore');
+        showToast('Product updated successfully', 'success');
+        
+    } catch (error) {
+        console.error('❌ Error updating product in Firestore:', error);
+        showToast('Failed to update product', 'error');
+        throw error;
+    }
+    
+
+}
+
+// ✅ SECTION 4: Delete Product from Firestore
+async function deleteProductFromFirestore(id) {
+    if (!useFirebase) {
+        // Use localStorage only
+        products = products.filter(p => p.id !== id);
+        saveToLocalStorage();
+        return;
+    }
+    
+    //UNCOMMENT THIS WHEN FIREBASE IS READY:
+    
+    try {
+        await db.collection('products').doc(id).delete();
+        
+        console.log('✅ Product deleted from Firestore');
+        showToast('Product deleted successfully', 'success');
+        
+    } catch (error) {
+        console.error('❌ Error deleting product from Firestore:', error);
+        showToast('Failed to delete product', 'error');
+        throw error;
+    }
+    
+}
+
+// ================================
+// 🔐 FIREBASE AUTHENTICATION SECTION
+// ================================
+
+// ✅ SECTION 5: Admin Login with Firebase Auth
+async function loginWithFirebase(email, password) {
+    if (!useFirebase) {
+        return false;
+    }
+    
+    //UNCOMMENT THIS WHEN FIREBASE AUTH IS READY:
+    
+    try {
+        const userCredential = await auth.signInWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        
+        console.log('✅ Admin logged in:', user.email);
+        isAdminAuthenticated = true;
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Login error:', error.message);
+        return false;
+    }
+    
+}
+
+// ✅ SECTION 6: Check Auth State
+function checkAuthState() {
+    if (!useFirebase) {
+        return;
+    }
+    
+    // UNCOMMENT THIS WHEN FIREBASE AUTH IS READY:
+    
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            console.log('✅ User is signed in:', user.email);
+            isAdminAuthenticated = true;
+        } else {
+            console.log('⚠️  User is signed out');
+            isAdminAuthenticated = false;
+        }
+    });
+    
+}
+
+// ✅ SECTION 7: Admin Logout
+async function logoutFirebase() {
+    if (!useFirebase) {
+        isAdminAuthenticated = false;
+        return;
+    }
+    
+    // UNCOMMENT THIS WHEN FIREBASE AUTH IS READY:
+    
+    try {
+        await auth.signOut();
+        console.log('✅ User signed out');
+        isAdminAuthenticated = false;
+        closeAdminModal();
+        showToast('Logged out successfully', 'success');
+        
+    } catch (error) {
+        console.error('❌ Logout error:', error);
+    }
+    
+
+}
+
+// ================================
+// LOCAL STORAGE FUNCTIONS
+// ================================
+
 function saveToLocalStorage() {
     localStorage.setItem('vishwakarma-products', JSON.stringify(products));
     localStorage.setItem('vishwakarma-feedbacks', JSON.stringify(feedbacks));
@@ -99,7 +325,7 @@ function saveToLocalStorage() {
 }
 
 // ================================
-// UI RENDERING
+// UI RENDERING FUNCTIONS
 // ================================
 
 function renderCategories() {
@@ -164,7 +390,7 @@ function renderProducts() {
     if (displayedPrevious.length > 0) {
         previousGrid.innerHTML = displayedPrevious.map(product => createProductCard(product)).join('');
     } else {
-        previousGrid.innerHTML = '<p class="text-center p-4" style="grid-column: 1/-1; color: var(--text-light)">No previous works in this category yet.</p>';
+        previousGrid.innerHTML = '<p class="text-center p-4" style="grid-column: 1/-1; color: var(--text-light); font-size: 0.875rem;">No previous works in this category yet.</p>';
     }
     
     // Show/hide View All button for previous works
@@ -184,7 +410,7 @@ function renderProducts() {
     if (displayedInspirations.length > 0) {
         inspirationsGrid.innerHTML = displayedInspirations.map(product => createProductCard(product)).join('');
     } else {
-        inspirationsGrid.innerHTML = '<p class="text-center p-4" style="grid-column: 1/-1; color: var(--text-light)">No inspiration designs in this category yet.</p>';
+        inspirationsGrid.innerHTML = '<p class="text-center p-4" style="grid-column: 1/-1; color: var(--text-light); font-size: 0.875rem;">No inspiration designs in this category yet.</p>';
     }
     
     // Show/hide View All button for inspirations
@@ -211,15 +437,9 @@ function createProductCard(product) {
                     onclick="togglePin(event, '${product.id}')"
                     title="${isPinned ? 'Unpin' : 'Pin'} this design"
                 >
-                    ${isPinned ? `
-                        <svg class="icon-small" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M12 17v5m-7-5l7-7 7 7m-7-7v-5l-3 1v5z"/>
-                        </svg>
-                    ` : `
-                        <svg class="icon-small" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M12 17v5m-7-5l7-7 7 7m-7-7v-5l-3 1v5z"/>
-                        </svg>
-                    `}
+                    <svg class="icon-small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 17v5m-7-5l7-7 7 7m-7-7v-5l-3 1v5z"/>
+                    </svg>
                 </button>
             </div>
             <div class="product-info">
@@ -296,11 +516,76 @@ function showPinnedDesigns() {
         return;
     }
     
+    const totalEstimate = pinnedDesigns.reduce((sum, item) => sum + item.product.price, 0);
+    
+    // Generate WhatsApp message
+    const whatsappMessage = `Hello! I'm interested in these designs from Shri Vishwakarma Wood Works:\n\n${pinnedDesigns.map((item, idx) => `${idx + 1}. ${item.product.name} - ₹${item.product.price.toLocaleString('en-IN')}`).join('\n')}\n\nEstimated Total: ₹${totalEstimate.toLocaleString('en-IN')}\n\nI'd like to discuss pricing and other details.`;
+    
+    // Generate Email body
+    const emailBody = pinnedDesigns.map((item, idx) => `${idx + 1}. ${item.product.name} (₹${item.product.price.toLocaleString('en-IN')})`).join('%0D%0A');
+    
     let html = `
         <div style="max-height: 60vh; overflow-y: auto;">
             <h3 style="margin-bottom: 1rem; font-size: 1.25rem; font-weight: 600;">Pinned Designs (${pinnedDesigns.length})</h3>
-            <div class="product-grid">
-                ${pinnedDesigns.map(item => createProductCard(item.product)).join('')}
+            
+            <!-- Pinned Items List -->
+            <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;">
+                ${pinnedDesigns.map(item => `
+                    <div style="display: flex; gap: 1rem; padding: 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem; background: white;">
+                        <img src="${item.product.image}" alt="${item.product.name}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 0.375rem; cursor: pointer;" onclick="openImageViewer('${item.product.image}', '${item.product.name}')">
+                        <div style="flex: 1;">
+                            <h4 style="font-weight: 600; margin-bottom: 0.25rem;">${item.product.name}</h4>
+                            <p style="font-size: 0.875rem; color: var(--text-light); margin-bottom: 0.25rem;">${item.product.category}</p>
+                            <p style="font-size: 0.875rem; color: var(--text-light);">${item.product.description}</p>
+                        </div>
+                        <div style="display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end;">
+                            <div style="font-weight: bold; color: var(--primary);">₹${item.product.price.toLocaleString('en-IN')}</div>
+                            <button onclick="removeFromPinnedInModal('${item.product.id}')" style="padding: 0.25rem 0.5rem; background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.875rem;">Remove</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+            
+            <!-- Summary -->
+            <div style="border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; background: var(--bg);">
+                <h4 style="font-weight: 600; margin-bottom: 0.75rem;">Summary</h4>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.875rem;">
+                    <span>Total Designs:</span>
+                    <span style="font-weight: 500;">${pinnedDesigns.length}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid var(--border); font-size: 1.125rem; font-weight: bold;">
+                    <span>Estimated Total:</span>
+                    <span style="color: var(--primary);">₹${totalEstimate.toLocaleString('en-IN')}</span>
+                </div>
+                
+                <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 0.5rem; padding: 0.75rem; margin: 1rem 0; font-size: 0.875rem; color: #92400e;">
+                    <strong>Note:</strong> This is an estimated price. Final pricing may vary based on customization, materials, and dimensions. Contact us for an accurate quote.
+                </div>
+                
+                <!-- Contact Buttons -->
+                <div style="display: grid; grid-template-columns: 1fr; gap: 0.75rem; margin-top: 1rem;">
+                    <a href="https://wa.me/917082702447?text=${encodeURIComponent(whatsappMessage)}" target="_blank" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; background: #25D366; color: white; padding: 0.75rem 1rem; border-radius: 0.5rem; text-decoration: none; font-weight: 500; transition: all 0.2s;">
+                        <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                        </svg>
+                        Send via WhatsApp
+                    </a>
+                    
+                    <a href="mailto:jangranaman337@gmail.com?subject=Inquiry about Selected Designs&body=Hi,%0D%0A%0D%0AI'm interested in the following designs from your gallery:%0D%0A%0D%0A${emailBody}%0D%0A%0D%0AEstimated Total: ₹${totalEstimate.toLocaleString('en-IN')}%0D%0A%0D%0APlease provide more details.%0D%0A%0D%0AThank you!" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; background: white; color: var(--primary); padding: 0.75rem 1rem; border: 1px solid var(--primary); border-radius: 0.5rem; text-decoration: none; font-weight: 500; transition: all 0.2s;">
+                        <svg style="width: 16px; height: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                            <polyline points="22,6 12,13 2,6"></polyline>
+                        </svg>
+                        Send via Email
+                    </a>
+                    
+                    <a href="tel:+917082702447" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; background: var(--primary); color: white; padding: 0.75rem 1rem; border-radius: 0.5rem; text-decoration: none; font-weight: 500; transition: all 0.2s;">
+                        <svg style="width: 16px; height: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                        </svg>
+                        Call Now
+                    </a>
+                </div>
             </div>
         </div>
     `;
@@ -325,6 +610,21 @@ function showPinnedDesigns() {
     });
 }
 
+function removeFromPinnedInModal(productId) {
+    pinnedDesigns = pinnedDesigns.filter(item => item.product.id !== productId);
+    saveToLocalStorage();
+    updatePinnedBadge();
+    
+    // Close and reopen modal to refresh
+    document.querySelector('.modal')?.remove();
+    
+    if (pinnedDesigns.length > 0) {
+        showPinnedDesigns();
+    } else {
+        showToast('All designs removed');
+    }
+}
+
 let logoClickCount = 0;
 let logoClickTimer;
 
@@ -337,13 +637,13 @@ function handleLogoClick() {
     }, 2000);
     
     if (logoClickCount >= 5) {
-        window.location.hash = '#admin';
+        openAdminModal();
         logoClickCount = 0;
     }
 }
 
 // ================================
-// MODAL FUNCTIONS
+// ADMIN MODAL FUNCTIONS
 // ================================
 
 function openAdminModal() {
@@ -374,6 +674,22 @@ function renderAdminLogin() {
                 <label>Password</label>
                 <input type="password" id="admin-password" required placeholder="Enter admin password" autocomplete="off">
             </div>
+            
+            <!-- 🔐 FIREBASE AUTH OPTION -->
+            <!-- Uncomment this section when Firebase Auth is configured -->
+            <!--
+            <div style="text-align: center; margin: 1rem 0; color: var(--text-light);">OR</div>
+            <div class="form-group">
+                <label>Email (Firebase Auth)</label>
+                <input type="email" id="admin-email" placeholder="admin@example.com">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="admin-firebase-password" placeholder="Firebase password">
+            </div>
+            <button type="button" onclick="handleFirebaseLogin()" class="btn btn-outline" style="width: 100%; margin-bottom: 1rem;">Login with Firebase</button>
+            -->
+            
             <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
         </form>
     `;
@@ -393,33 +709,56 @@ function handleAdminLogin(event) {
     }
 }
 
+// 🔐 FIREBASE AUTH LOGIN HANDLER
+async function handleFirebaseLogin() {
+    // UNCOMMENT WHEN FIREBASE AUTH IS CONFIGURED:
+    
+    const email = document.getElementById('admin-email').value;
+    const password = document.getElementById('admin-firebase-password').value;
+    
+    const success = await loginWithFirebase(email, password);
+    
+    if (success) {
+        renderAdminPanel();
+        showToast('Login successful with Firebase', 'success');
+    } else {
+        showToast('Invalid email or password', 'error');
+    }
+    
+
+}
+
 function renderAdminPanel() {
     const title = document.getElementById('admin-title');
     const body = document.getElementById('admin-body');
     
     title.textContent = 'Admin Panel';
     body.innerHTML = `
-        <div style="margin-bottom: 1rem; display: flex; justify-content: flex-end;">
-            <button onclick="isAdminAuthenticated = false; closeAdminModal();" class="btn btn-outline">Logout</button>
+        <div style="margin-bottom: 1rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
+            <button onclick="logoutFirebase(); isAdminAuthenticated = false; closeAdminModal();" class="btn btn-outline" style="font-size: 0.875rem;">Logout</button>
         </div>
         <div class="admin-tabs">
-            <button class="admin-tab active" onclick="switchAdminTab('products')">Manage Products</button>
-            <button class="admin-tab" onclick="switchAdminTab('mostLiked')">Most Liked (${products.filter(p => p.mostLiked).length})</button>
-            <button class="admin-tab" onclick="switchAdminTab('banner')">Banner Image</button>
-            <button class="admin-tab" onclick="switchAdminTab('feedbacks')">Feedbacks (${feedbacks.length})</button>
+            <button class="admin-tab active" onclick="switchAdminTab(event, 'products')">Manage Products</button>
+            <button class="admin-tab" onclick="switchAdminTab(event, 'mostLiked')">Most Liked (${products.filter(p => p.mostLiked).length})</button>
+            <button class="admin-tab" onclick="switchAdminTab(event, 'banner')">Banner Image</button>
+            <button class="admin-tab" onclick="switchAdminTab(event, 'feedbacks')">Feedbacks (${feedbacks.length})</button>
         </div>
         <div id="admin-content"></div>
     `;
     
-    switchAdminTab('products');
+    switchAdminTab(null, 'products');
 }
 
-function switchAdminTab(tab) {
+function switchAdminTab(event, tab) {
     // Update tab buttons
     document.querySelectorAll('.admin-tab').forEach(btn => {
         btn.classList.remove('active');
     });
-    event?.target?.classList.add('active');
+    if (event) {
+        event.target.classList.add('active');
+    } else {
+        document.querySelector('.admin-tab').classList.add('active');
+    }
     
     const content = document.getElementById('admin-content');
     
@@ -467,16 +806,16 @@ function renderProductsTab(content) {
                             <td><span class="type-badge ${product.type === 'previous-work' ? 'type-previous' : 'type-inspiration'}">${product.type === 'previous-work' ? 'Previous Work' : 'Inspiration'}</span></td>
                             <td>₹${product.price.toLocaleString('en-IN')}</td>
                             <td>
-                                <button onclick="toggleMostLiked('${product.id}')" class="btn ${product.mostLiked ? 'btn-primary' : 'btn-outline'}" style="padding: 0.25rem 0.5rem;">
+                                <button onclick="toggleMostLiked('${product.id}')" class="btn ${product.mostLiked ? 'btn-primary' : 'btn-outline'}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
                                     <svg class="icon-small" viewBox="0 0 24 24" fill="${product.mostLiked ? 'currentColor' : 'none'}" stroke="currentColor">
                                         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
                                     </svg>
                                 </button>
                             </td>
                             <td>
-                                <div style="display: flex; gap: 0.5rem;">
-                                    <button onclick="editProduct('${product.id}')" class="btn btn-outline" style="padding: 0.25rem 0.5rem;">Edit</button>
-                                    <button onclick="deleteProduct('${product.id}')" class="btn btn-outline" style="padding: 0.25rem 0.5rem; color: var(--danger);">Delete</button>
+                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                    <button onclick="editProduct('${product.id}')" class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Edit</button>
+                                    <button onclick="deleteProduct('${product.id}')" class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--danger);">Delete</button>
                                 </div>
                             </td>
                         </tr>
@@ -490,10 +829,10 @@ function renderProductsTab(content) {
 function showAddProductForm() {
     const container = document.getElementById('product-form-container');
     container.innerHTML = `
-        <div style="background: var(--bg); padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
-            <h3 style="margin-bottom: 1rem; font-size: 1.25rem; font-weight: 600;">Add New Design</h3>
+        <div style="background: var(--bg); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
+            <h3 style="margin-bottom: 1rem; font-size: 1.125rem; font-weight: 600;">Add New Design</h3>
             <form onsubmit="saveProduct(event)" id="product-form">
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
                     <div class="form-group">
                         <label>Name *</label>
                         <input type="text" name="name" required>
@@ -531,7 +870,7 @@ function showAddProductForm() {
                     <label>Product Image *</label>
                     <p style="font-size: 0.875rem; color: var(--text-light); margin-bottom: 0.5rem;">Supports 4K images and all common formats</p>
                     <div id="image-preview" style="margin-bottom: 0.75rem; display: none;">
-                        <img src="" alt="Preview" style="width: 128px; height: 128px; object-fit: cover; border-radius: 0.5rem; border: 1px solid var(--border);">
+                        <img src="" alt="Preview" style="width: 100px; height: 100px; object-fit: cover; border-radius: 0.5rem; border: 1px solid var(--border);">
                     </div>
                     <input type="file" accept="image/*" onchange="handleImageUpload(event, 'product')" style="margin-bottom: 0.5rem;">
                     <div style="text-align: center; margin: 0.5rem 0; color: var(--text-light); font-size: 0.875rem;">OR</div>
@@ -539,7 +878,7 @@ function showAddProductForm() {
                 </div>
                 <div class="form-group">
                     <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                        <input type="checkbox" name="mostLiked" style="width: auto;">
+                        <input type="checkbox" name="mostLiked" style="width: auto; min-height: auto;">
                         <span>Mark as Most Liked</span>
                     </label>
                 </div>
@@ -592,13 +931,12 @@ function updateImagePreview(url) {
     }
 }
 
-function saveProduct(event) {
+async function saveProduct(event) {
     event.preventDefault();
     const form = event.target;
     const formData = new FormData(form);
     
-    const product = {
-        id: Date.now().toString(),
+    const productData = {
         name: formData.get('name'),
         description: formData.get('description'),
         price: parseInt(formData.get('price')),
@@ -608,12 +946,20 @@ function saveProduct(event) {
         mostLiked: formData.get('mostLiked') === 'on'
     };
     
-    products.push(product);
-    saveToLocalStorage();
-    showToast('Product added successfully', 'success');
-    renderProductsTab(document.getElementById('admin-content'));
-    renderProducts();
-    renderCategories();
+    // 🔥 Use Firebase or localStorage
+    try {
+        await addProductToFirestore(productData);
+        
+        // If not using Firebase, manually update UI
+        if (!useFirebase) {
+            renderProductsTab(document.getElementById('admin-content'));
+            renderProducts();
+            renderCategories();
+            showToast('Product added successfully', 'success');
+        }
+    } catch (error) {
+        console.error('Error saving product:', error);
+    }
 }
 
 function cancelProductForm() {
@@ -626,10 +972,10 @@ function editProduct(id) {
     
     const container = document.getElementById('product-form-container');
     container.innerHTML = `
-        <div style="background: var(--bg); padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
-            <h3 style="margin-bottom: 1rem; font-size: 1.25rem; font-weight: 600;">Edit Design</h3>
+        <div style="background: var(--bg); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
+            <h3 style="margin-bottom: 1rem; font-size: 1.125rem; font-weight: 600;">Edit Design</h3>
             <form onsubmit="updateProduct(event, '${id}')" id="product-form">
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
                     <div class="form-group">
                         <label>Name *</label>
                         <input type="text" name="name" value="${product.name}" required>
@@ -662,7 +1008,7 @@ function editProduct(id) {
                     <label>Product Image *</label>
                     <p style="font-size: 0.875rem; color: var(--text-light); margin-bottom: 0.5rem;">Supports 4K images and all common formats</p>
                     <div id="image-preview" style="margin-bottom: 0.75rem;">
-                        <img src="${product.image}" alt="Preview" style="width: 128px; height: 128px; object-fit: cover; border-radius: 0.5rem; border: 1px solid var(--border);">
+                        <img src="${product.image}" alt="Preview" style="width: 100px; height: 100px; object-fit: cover; border-radius: 0.5rem; border: 1px solid var(--border);">
                     </div>
                     <input type="file" accept="image/*" onchange="handleImageUpload(event, 'product')" style="margin-bottom: 0.5rem;">
                     <div style="text-align: center; margin: 0.5rem 0; color: var(--text-light); font-size: 0.875rem;">OR</div>
@@ -670,7 +1016,7 @@ function editProduct(id) {
                 </div>
                 <div class="form-group">
                     <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                        <input type="checkbox" name="mostLiked" ${product.mostLiked ? 'checked' : ''} style="width: auto;">
+                        <input type="checkbox" name="mostLiked" ${product.mostLiked ? 'checked' : ''} style="width: auto; min-height: auto;">
                         <span>Mark as Most Liked</span>
                     </label>
                 </div>
@@ -685,16 +1031,12 @@ function editProduct(id) {
     container.scrollIntoView({ behavior: 'smooth' });
 }
 
-function updateProduct(event, id) {
+async function updateProduct(event, id) {
     event.preventDefault();
     const form = event.target;
     const formData = new FormData(form);
     
-    const index = products.findIndex(p => p.id === id);
-    if (index === -1) return;
-    
-    products[index] = {
-        id: id,
+    const updates = {
         name: formData.get('name'),
         description: formData.get('description'),
         price: parseInt(formData.get('price')),
@@ -704,33 +1046,60 @@ function updateProduct(event, id) {
         mostLiked: formData.get('mostLiked') === 'on'
     };
     
-    saveToLocalStorage();
-    showToast('Product updated successfully', 'success');
-    renderProductsTab(document.getElementById('admin-content'));
-    renderProducts();
-    renderCategories();
+    // 🔥 Use Firebase or localStorage
+    try {
+        await updateProductInFirestore(id, updates);
+        
+        // If not using Firebase, manually update UI
+        if (!useFirebase) {
+            renderProductsTab(document.getElementById('admin-content'));
+            renderProducts();
+            renderCategories();
+            showToast('Product updated successfully', 'success');
+        }
+    } catch (error) {
+        console.error('Error updating product:', error);
+    }
 }
 
-function deleteProduct(id) {
+async function deleteProduct(id) {
     if (!confirm('Are you sure you want to delete this design?')) return;
     
-    products = products.filter(p => p.id !== id);
-    saveToLocalStorage();
-    showToast('Product deleted successfully', 'success');
-    renderProductsTab(document.getElementById('admin-content'));
-    renderProducts();
-    renderCategories();
+    // 🔥 Use Firebase or localStorage
+    try {
+        await deleteProductFromFirestore(id);
+        
+        // If not using Firebase, manually update UI
+        if (!useFirebase) {
+            renderProductsTab(document.getElementById('admin-content'));
+            renderProducts();
+            renderCategories();
+            showToast('Product deleted successfully', 'success');
+        }
+    } catch (error) {
+        console.error('Error deleting product:', error);
+    }
 }
 
-function toggleMostLiked(id) {
+async function toggleMostLiked(id) {
     const product = products.find(p => p.id === id);
     if (!product) return;
     
-    product.mostLiked = !product.mostLiked;
-    saveToLocalStorage();
-    renderProductsTab(document.getElementById('admin-content'));
-    renderProducts();
-    renderCategories();
+    const updates = { mostLiked: !product.mostLiked };
+    
+    // 🔥 Use Firebase or localStorage
+    try {
+        await updateProductInFirestore(id, updates);
+        
+        // If not using Firebase, manually update UI
+        if (!useFirebase) {
+            renderProductsTab(document.getElementById('admin-content'));
+            renderProducts();
+            renderCategories();
+        }
+    } catch (error) {
+        console.error('Error toggling most liked:', error);
+    }
 }
 
 function renderMostLikedTab(content) {
@@ -753,7 +1122,7 @@ function renderMostLikedTab(content) {
                         <div class="product-category">${product.category}</div>
                         <h3 class="product-name">${product.name}</h3>
                         <p class="product-description">${product.description}</p>
-                        <button onclick="toggleMostLiked('${product.id}')" class="btn btn-outline" style="width: 100%; margin-top: 0.75rem;">
+                        <button onclick="toggleMostLiked('${product.id}')" class="btn btn-outline" style="width: 100%; margin-top: 0.75rem; font-size: 0.875rem;">
                             Remove from Most Liked
                         </button>
                     </div>
@@ -766,15 +1135,15 @@ function renderMostLikedTab(content) {
 function renderBannerTab(content) {
     content.innerHTML = `
         <div>
-            <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">Banner Background Image</h3>
+            <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">Banner Background Image</h3>
             
             <div style="background: var(--bg); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
-                <h4 style="font-weight: 500; margin-bottom: 0.5rem;">Current Banner</h4>
-                <img src="${bannerImage}" alt="Current banner" onclick="openImageViewer('${bannerImage}', 'Banner Image')" style="width: 100%; height: 200px; object-fit: cover; border-radius: 0.5rem; cursor: pointer;">
+                <h4 style="font-weight: 500; margin-bottom: 0.5rem; font-size: 0.875rem;">Current Banner</h4>
+                <img src="${bannerImage}" alt="Current banner" onclick="openImageViewer('${bannerImage}', 'Banner Image')" style="width: 100%; max-height: 200px; object-fit: cover; border-radius: 0.5rem; cursor: pointer;">
             </div>
             
             <div style="border: 1px solid var(--border); padding: 1rem; border-radius: 0.5rem;">
-                <h4 style="font-weight: 500; margin-bottom: 0.5rem;">Upload New Banner Image</h4>
+                <h4 style="font-weight: 500; margin-bottom: 0.5rem; font-size: 0.875rem;">Upload New Banner Image</h4>
                 <p style="font-size: 0.875rem; color: var(--text-light); margin-bottom: 1rem;">Supports 4K images and all common formats (JPG, PNG, WebP)</p>
                 
                 <input type="file" accept="image/*" onchange="handleImageUpload(event, 'banner')" style="margin-bottom: 1rem;">
@@ -807,15 +1176,15 @@ function renderFeedbacksTab(content) {
         <div style="display: flex; flex-direction: column; gap: 1rem;">
             ${feedbacks.map(feedback => `
                 <div style="border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; background: white;">
-                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
-                        <div>
-                            <h4 style="font-weight: 600; font-size: 1.125rem;">${feedback.name}</h4>
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem; gap: 1rem; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <h4 style="font-weight: 600; font-size: 1.063rem; margin-bottom: 0.25rem;">${feedback.name}</h4>
                             <p style="font-size: 0.875rem; color: var(--text-light);">${feedback.email} • ${feedback.phone}</p>
                             <p style="font-size: 0.75rem; color: var(--text-light); margin-top: 0.25rem;">${new Date(feedback.timestamp).toLocaleString('en-IN')}</p>
                         </div>
-                        <button onclick="deleteFeedback('${feedback.id}')" class="btn btn-outline" style="padding: 0.25rem 0.5rem; color: var(--danger);">Delete</button>
+                        <button onclick="deleteFeedback('${feedback.id}')" class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.875rem; color: var(--danger);">Delete</button>
                     </div>
-                    <p style="color: var(--text);">${feedback.message}</p>
+                    <p style="color: var(--text); font-size: 0.875rem;">${feedback.message}</p>
                 </div>
             `).join('')}
         </div>
@@ -834,7 +1203,10 @@ function deleteFeedback(id) {
     document.querySelectorAll('.admin-tab')[3].textContent = `Feedbacks (${feedbacks.length})`;
 }
 
-// Feedback Modal
+// ================================
+// FEEDBACK MODAL FUNCTIONS
+// ================================
+
 function openFeedbackModal() {
     const modal = document.getElementById('feedback-modal');
     modal.classList.remove('hidden');
@@ -852,10 +1224,10 @@ function submitFeedback(event) {
     
     const feedback = {
         id: Date.now().toString(),
-        name: form.querySelector('#feedback-name').value,
-        email: form.querySelector('#feedback-email').value,
-        phone: form.querySelector('#feedback-phone').value,
-        message: form.querySelector('#feedback-message').value,
+        name: document.getElementById('feedback-name').value,
+        email: document.getElementById('feedback-email').value,
+        phone: document.getElementById('feedback-phone').value,
+        message: document.getElementById('feedback-message').value,
         timestamp: Date.now()
     };
     
@@ -869,7 +1241,10 @@ function submitFeedback(event) {
     }, 1500);
 }
 
-// Image Viewer
+// ================================
+// IMAGE VIEWER FUNCTIONS
+// ================================
+
 function openImageViewer(url, name) {
     const modal = document.getElementById('image-viewer-modal');
     const title = document.getElementById('image-viewer-title');
@@ -913,7 +1288,10 @@ function downloadImage() {
     link.click();
 }
 
-// Toast Notifications
+// ================================
+// TOAST NOTIFICATIONS
+// ================================
+
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -931,9 +1309,16 @@ function showToast(message, type = 'info') {
 // INITIALIZATION
 // ================================
 
+
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('🪵 Shri Vishwakarma Wood Works - Website Loaded');
+    
     // Set current year in footer
     document.getElementById('current-year').textContent = new Date().getFullYear();
+    
+    // Initialize Firebase (if configured)
+    loadProductsFromFirestore();
+    checkAuthState();
     
     // Initialize UI
     updateBanner();
@@ -953,4 +1338,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('image-viewer-modal').addEventListener('click', (e) => {
         if (e.target.id === 'image-viewer-modal') closeImageViewer();
     });
+    
+    console.log('✅ Website initialized successfully');
+    console.log('📦 Products loaded:', products.length);
+    console.log('📌 Pinned designs:', pinnedDesigns.length);
 });
+
